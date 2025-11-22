@@ -1,8 +1,10 @@
 // FILE: controllers/patientController.js
 const Reminder = require('../models/Reminder');
 const User = require('../models/User');
+const Steps = require('../models/Step');   // <-- added
+const Goal = require('../models/Goal');    // <-- added
 const { computeDistanceKm, computeCalories } = require('../utils/helpers');
-
+const mongoose = require('mongoose');      // <-- added
 
 // Add or update steps for a date
 exports.addSteps = async (req, res, next) => {
@@ -48,9 +50,9 @@ const userId = req.user.id;
 const today = new Date(); today.setHours(0,0,0,0);
 const sevenDaysAgo = new Date(today); sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
 const rows = await Steps.aggregate([
-{ $match: { user: require('mongoose').Types.ObjectId(userId), date: { $gte: sevenDaysAgo, $lte: today } } },
-{ $group: { _id: "$date", steps: { $sum: "$steps" }, calories: { $sum: "$calories" } } },
-{ $sort: { _id: 1 } }
+  { $match: { user: new mongoose.Types.ObjectId(userId), date: { $gte: sevenDaysAgo, $lte: today } } },
+  { $group: { _id: "$date", steps: { $sum: "$steps" }, calories: { $sum: "$calories" } } },
+  { $sort: { _id: 1 } }
 ]);
 res.json(rows);
 } catch (err) { next(err); }
@@ -59,22 +61,21 @@ res.json(rows);
 
 // helper to update streak
 async function updateStreak(userId, day) {
-const User = require('../models/User');
-const Steps = require('../models/Step');
-const user = await User.findById(userId);
-const goal = await Goal.findOne({ user: userId, type: 'steps' });
-const target = goal ? (goal.dailyStepGoal || 5000) : 5000;
-const yesterday = new Date(day); yesterday.setDate(yesterday.getDate() - 1);
-yesterday.setHours(0,0,0,0);
-const y = await Steps.findOne({ user: userId, date: yesterday });
-const todayEntry = await Steps.findOne({ user: userId, date: day });
-let newStreak = 0;
-if (todayEntry && todayEntry.steps >= target) {
-newStreak = (y && y.steps >= target) ? (user.streakCurrent + 1) : 1;
-} else {
-newStreak = 0;
-}
-user.streakCurrent = newStreak;
-if (newStreak > user.bestStreak) user.bestStreak = newStreak;
-await user.save();
+  // removed duplicate requires here - use top-level User, Steps, Goal
+  const user = await User.findById(userId);
+  const goal = await Goal.findOne({ user: userId, type: 'steps' });
+  const target = goal ? (goal.dailyStepGoal || 5000) : 5000;
+  const yesterday = new Date(day); yesterday.setDate(yesterday.getDate() - 1);
+  yesterday.setHours(0,0,0,0);
+  const y = await Steps.findOne({ user: userId, date: yesterday });
+  const todayEntry = await Steps.findOne({ user: userId, date: day });
+  let newStreak = 0;
+  if (todayEntry && todayEntry.steps >= target) {
+    newStreak = (y && y.steps >= target) ? (user.streakCurrent + 1) : 1;
+  } else {
+    newStreak = 0;
+  }
+  user.streakCurrent = newStreak;
+  if (newStreak > user.bestStreak) user.bestStreak = newStreak;
+  await user.save();
 }
